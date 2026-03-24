@@ -1,0 +1,47 @@
+{
+  "name": "@opencode/exa-cli",
+  "version": "0.1.0",
+  "description": "Token-efficient web search CLI for AI agents, powered by Exa",
+  "type": "module",
+  "main": "./dist/cli.js",
+  "bin": {
+    "exa-cli": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/",
+    "skill/"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AidenGeunGeun/aidens-setup.git",
+    "directory": "packages/exa-cli"
+  },
+  "keywords": [
+    "exa",
+    "search",
+    "ai",
+    "agent",
+    "cli",
+    "web-search"
+  ]
+}
