@@ -33,7 +33,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AidenGeunGeun/aidens-setup.git",
+    "url": "git+https://github.com/AidenGeunGeun/agent-tools.git",
     "directory": "packages/exa-cli"
   },
   "keywords": [
