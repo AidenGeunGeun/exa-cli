@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment / secrets
+.env
+.env.local
+
+# Internal engineering specs (not for sharing)
+specs/
+
+# Tool caches
+.code-intel/
+
+# OS / editor
+.DS_Store
+*.swp

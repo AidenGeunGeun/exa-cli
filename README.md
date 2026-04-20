@@ -2,30 +2,32 @@
 
 # exa-cli
 
-**Web search that fits in a context window.**
+**Token-efficient web research for AI agents.**
 
 [![npm version](https://img.shields.io/npm/v/%40opencode%2Fexa-cli?style=flat-square&labelColor=black)](https://www.npmjs.com/package/@opencode/exa-cli)
 [![License](https://img.shields.io/badge/license-MIT-white?labelColor=black&style=flat-square)](LICENSE)
 
-Token-efficient web search for AI agents, powered by [Exa](https://exa.ai)
+Powered by [Exa](https://exa.ai)
 
 </div>
 
 ---
 
-## The Problem
+`exa-cli` is a single-file CLI around Exa's `/search` API. It replaces page-dump workflows with dense highlights, structured extraction, and synthesis modes that fit in an agent context window.
 
-AI agents that use `webfetch` to research topics dump entire web pages into their context window — 50K+ tokens of navigation chrome, sidebars, and footers just to extract 2K of useful information. This wastes context, increases cost, and degrades agent performance.
+## Pick the Right Tier
 
-## The Fix
+Deep-reasoning is the fast middle tier. Use it for synthesis without meta-analysis. Use a web-search agent when you need claim-level citations, conflicts analysis, or follow-the-thread research.
 
-`exa-cli` returns only the relevant parts. Exa's `highlights` mode extracts the key excerpts from each page, delivering 10x fewer tokens with higher information density. One search call, clean results, minimal context cost.
+| Need | Use | Cost | Latency | Best for |
+|:-----|:----|:-----|:--------|:---------|
+| Quick lookup | `auto` / `fast` / `instant` | $0.007 | 1-2s | Facts, API docs, single-step research |
+| Synthesized research | `deep` / `deep-reasoning` | $0.012-$0.015 | 15-30s | Comparisons, landscape scans, structured writeups |
+| Iterative research | web-search agent | ~$0.08 | 60-90s | Claim-level citations, source conflicts, open-ended investigation |
 
-```bash
-exa-cli '{"query":"OpenAI embeddings API request schema and dimensions"}'
-```
-
----
+Notes:
+- `deep-lite` exists, but it is weak for synthesis. Prefer `deep` or `deep-reasoning` when you want a real writeup.
+- First 10 results worth of contents are bundled. `exa-cli` now defaults to 10 results.
 
 ## Install
 
@@ -42,25 +44,27 @@ npx @opencode/exa-cli '{"query":"..."}'
 Set your API key:
 
 ```bash
-export EXA_API_KEY=your-key-here  # get one at https://dashboard.exa.ai/api-keys
+export EXA_API_KEY=your-key-here
 ```
+
+Get one at https://dashboard.exa.ai/api-keys
 
 ## Usage
 
 JSON input via CLI argument or stdin:
 
 ```bash
-# Search with highlights (default — token-efficient)
+# Quick lookup with token-efficient highlights (default)
 exa-cli '{"query":"Rust async runtime benchmarks 2026"}'
 
-# Scoped to specific domains
-exa-cli '{"query":"Ollama embedding API","domains":["ollama.com","github.com"]}'
+# Structured extraction on a cheap auto call
+exa-cli '{"query":"latest Node.js LTS release line and support dates","domains":["nodejs.org"],"type":"auto","schema":{"type":"object","required":["line","codename","support_end"],"properties":{"line":{"type":"string"},"codename":{"type":"string"},"support_end":{"type":"string"}}}}'
 
-# Summary mode for quick overviews
-exa-cli '{"query":"WebGPU browser support status","content":"summary","results":3}'
+# Combine content modes and set a freshness budget
+exa-cli '{"query":"Bun package manager roadmap","content":["highlights","text"],"maxAgeHours":24}'
 
-# Deep search with structured output
-exa-cli '{"query":"compare frontier AI models","type":"deep","schema":{"type":"object","required":["models"],"properties":{"models":{"type":"array","items":{"type":"object","required":["name","release_date"],"properties":{"name":{"type":"string"},"release_date":{"type":"string"}}}}}}}'
+# Deep-reasoning synthesis with extra query variants and no raw result dump
+exa-cli '{"query":"compare coding agents for greenfield Next.js apps","type":"deep-reasoning","additionalQueries":["agentic coding tool benchmark 2026","Next.js coding assistant comparison"],"systemPrompt":"Return a concise buyer guide with strengths, weaknesses, and best fit.","schema":{"type":"text","description":"Buyer guide markdown"},"synthOnly":true}'
 
 # Pipe via stdin
 printf '%s' '{"query":"latest Node.js LTS"}' | exa-cli
@@ -71,31 +75,41 @@ printf '%s' '{"query":"latest Node.js LTS"}' | exa-cli
 | Field | Type | Default | Description |
 |:------|:-----|:--------|:------------|
 | `query` | string | **(required)** | Natural language search query |
-| `type` | string | `"auto"` | `auto`, `fast`, `instant`, `deep`, `deep-reasoning` |
-| `results` | number | `5` | Number of results (1-100) |
-| `chars` | number | `4000` | Max characters for content |
-| `content` | string | `"highlights"` | `highlights`, `text`, `summary` |
-| `category` | string | — | `company`, `people`, `research paper`, `news`, `tweet`, `personal site`, `financial report` |
-| `domains` | string[] | — | Only return results from these domains |
-| `excludeDomains` | string[] | — | Exclude results from these domains |
-| `startDate` | string | — | Published after (ISO date) |
-| `endDate` | string | — | Published before (ISO date) |
-| `fresh` | boolean | `false` | Force livecrawl for latest content |
-| `schema` | object | — | JSON schema for structured deep search output |
-| `systemPrompt` | string | — | Instructions for deep search |
-| `contentQuery` | string | — | Custom query for highlight/summary selection |
+| `type` | string | `"auto"` | `auto`, `fast`, `instant`, `deep-lite`, `deep`, `deep-reasoning` |
+| `results` | number | `10` | Number of results (1-100) |
+| `chars` | number | `4000` | Max characters for `highlights` and `text` |
+| `content` | string or string[] | `"highlights"` | `highlights`, `text`, `summary`, or an array such as `["highlights","text"]` |
+| `category` | string | - | `company`, `people`, `research paper`, `news`, `personal site`, `financial report` |
+| `domains` | string[] | - | Only return results from these domains |
+| `excludeDomains` | string[] | - | Exclude results from these domains |
+| `startDate` | string | - | Published after (ISO date) |
+| `endDate` | string | - | Published before (ISO date) |
+| `fresh` | boolean | `false` | Alias for `maxAgeHours: 0` |
+| `maxAgeHours` | number | - | Allow cached results newer than this many hours |
+| `additionalQueries` | string[] | - | Extra query variations to improve search coverage |
+| `schema` | object | - | JSON schema for structured output |
+| `systemPrompt` | string | - | Instructions for search behavior |
+| `contentQuery` | string | - | Custom query for highlight or summary selection |
+| `synthOnly` | boolean | `false` | CLI-only: when synthesis is present, suppress the raw results list |
 
 ## Content Modes
 
 | Mode | Tokens | Best for |
 |:-----|:-------|:---------|
-| **highlights** | Low | Agent workflows, factual lookups, API docs |
-| **summary** | Low | Quick overviews, condensed answers |
-| **text** | High | Deep analysis requiring full page context |
+| `highlights` | Low | Facts, API docs, agent research |
+| `summary` | Low | Quick overviews |
+| `text` | High | Cases where you really need long page excerpts |
+
+## Notes
+
+- `outputSchema` and `systemPrompt` work on every search type, not just deep modes.
+- `synthOnly` is a formatter flag in this CLI. It does not map to an Exa API field.
+- `highlightScores` is deprecated in the API and intentionally not rendered.
+- `tweet` is not a valid Exa category and is intentionally not accepted.
 
 ## Agent Integration
 
-An OpenCode / OCO skill file is included at `skill/SKILL.md`.
+An OCO skill file is included at `skill/SKILL.md`.
 
 ```bash
 mkdir -p ~/.config/opencode/skill/exa-cli
@@ -105,8 +119,8 @@ cp skill/SKILL.md ~/.config/opencode/skill/exa-cli/SKILL.md
 ## Build From Source
 
 ```bash
-git clone https://github.com/AidenGeunGeun/exa-cli.git
-cd exa-cli
+git clone https://github.com/AidenGeunGeun/agent-tools.git
+cd agent-tools/packages/exa-cli
 npm install
 npm run build
 ```

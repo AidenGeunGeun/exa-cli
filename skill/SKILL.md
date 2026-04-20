@@ -1,109 +1,157 @@
 ---
 name: exa-cli
-description: Token-efficient web search via the Exa API. Use when an agent needs to search the web, research documentation, look up current information, find API references, or investigate any topic that requires external knowledge. Prefer this over webfetch for any multi-result research task — it returns dense highlights instead of dumping entire pages into context. Also use when the user mentions "exa", "web search", "look this up", "research this online", or needs current information beyond training data.
+description: Provides three-tier web research via the Exa Search API. Triggers for current web information, API docs, vendor comparisons, landscape scans, and structured extraction from search results. Should be preferred over webfetch for multi-result research, and its deep-reasoning synthesis tier often replaces a web-search subagent when the task needs synthesis but not claim-level conflict analysis.
 ---
 
 # exa-cli
 
-`exa-cli` is a Node.js CLI that searches the web via the Exa API and returns token-efficient results optimized for agent consumption. It replaces raw webfetch workflows that bloat context windows with full page dumps.
+`exa-cli` is the default web research gateway for this stack. It is usually the right first step when a task needs current web information, and it now covers two distinct jobs: cheap lookup and fast synthesis.
 
-## When to Use This vs Other Tools
+## Start Here
 
-- **Need current web information:** `exa-cli` (NOT webfetch)
-- **Need to research API docs or compare options:** `exa-cli` with highlights
-- **Need structured data from the web:** `exa-cli` with deep search + schema
-- **Need to read a specific known URL:** `webfetch` (exa-cli is for search, not direct URL fetching)
-- **Need to find code in the local codebase:** `code-intel` (NOT exa-cli)
+Deep-reasoning is the fast, structured middle tier. Use it for synthesis without meta-analysis. Use a web-search subagent when you need claim-level citations, conflicts analysis, or iterative reasoning.
 
-## Usage
+| Tier | Use this | Cost | Latency | Reach for it when | Do not use it when |
+|:-----|:---------|:-----|:--------|:------------------|:-------------------|
+| Quick lookup | `exa-cli` with `auto` (or `fast` / `instant`) | $0.007 | 1-2s | You need facts, API docs, recent references, or a small structured extract | You need a polished synthesis or source-conflict analysis |
+| Synthesized research | `exa-cli` with `deep-reasoning` or `deep` | $0.015 / $0.012 | 28s / 25s | You want a comparison, landscape scan, buyer guide, or structured writeup | You need to know which sources disagree or where the evidence is weak |
+| Iterative research | `web-search` subagent | ~$0.08 | 60-90s | You need claim-level citations, conflicts analysis, or follow-the-thread investigation | You only need a solid synthesis or structured extraction |
 
-Pass a JSON object as the first argument or pipe via stdin:
+Quick rule:
+- Need one answer fast: `auto`.
+- Need a writeup fast: `deep-reasoning`.
+- Need source-by-source analysis: `web-search` subagent.
+
+## Cost And Latency Cheat Sheet
+
+| Mode | Cost | Measured latency | What it is good at |
+|:-----|:-----|:-----------------|:-------------------|
+| `auto` / `fast` / `instant` | $0.007 | 1-2s | Cheap lookup, docs search, structured extraction on a budget |
+| `deep-lite` | $0.012 | ~10s | A light middle option, but weak for synthesis |
+| `deep` | $0.012 | ~25s | High-quality synthesis and markdown writeups |
+| `deep-reasoning` | $0.015 | ~28s | Best default for synthesis and structured reports |
+| `web-search` subagent | ~$0.08 | 60-90s | Iterative reasoning, conflicts, uncertainty tracking |
+
+Pricing notes:
+- First 10 results worth of contents are bundled, so do not cling to 5-result habits.
+- Additional results beyond 10 add $0.001 per result.
+- `summary` adds $0.001 per result.
+- `deep-reasoning` is only $0.003 more than `deep`; default to it when the user wants synthesis.
+- `deep-lite` tested poorly for synthesis. Treat it as optional completeness, not the recommended middle tier.
+
+## Best Defaults
+
+- Prefer `highlights` unless you truly need long excerpts.
+- Prefer `maxAgeHours` over `fresh` when you want "recent enough" instead of forced recrawls.
+- Use `additionalQueries` on `deep` and `deep-reasoning` when the topic has multiple phrasings.
+- Use `outputSchema` and `systemPrompt` freely on every search type. They are not deep-only anymore.
+- Set `synthOnly: true` when a synthesis response is the real deliverable. It suppresses the raw result dump.
+
+## Useful Knobs
+
+| Input | Why it matters |
+|:------|:---------------|
+| `content` | Can be a single mode or an array like `["highlights","text"]` when you want both snippets and long excerpts |
+| `maxAgeHours` | Lets you say "use cache if newer than 24h, otherwise crawl" |
+| `additionalQueries` | Gives Exa 2-3 alternate phrasings for better deep coverage |
+| `schema` | Requests structured output on any tier |
+| `systemPrompt` | Shapes tone, sections, and what to prioritize in the answer |
+| `synthOnly` | CLI-only flag that drops the raw results list when synthesis is present |
+| `contentQuery` | Tells highlights or summaries what to focus on inside each page |
+
+## Worked Examples
+
+### Tier 1 - Quick lookup
+
+Use this for facts, docs, or cheap structured extraction.
+
+**Factual lookup**
 
 ```bash
-exa-cli '{"query":"OpenAI embeddings API request schema and models"}'
-exa-cli '{"query":"Rust async runtime comparison 2026","results":3,"content":"summary"}'
-printf '%s' '{"query":"latest Node.js LTS version"}' | exa-cli
+exa-cli '{"query":"current Node.js LTS version","domains":["nodejs.org"]}'
 ```
 
-## JSON Input
+**Structured extraction on a cheap `auto` call**
 
-```ts
-interface ExaInput {
-  query: string;              // required — natural language search query
-  type?: string;              // "auto" (default) | "fast" | "instant" | "deep" | "deep-reasoning"
-  results?: number;           // number of results, 1-100 (default: 5)
-  chars?: number;             // max characters for content (default: 4000)
-  content?: string;           // "highlights" (default) | "text" | "summary"
-  category?: string;          // "company" | "people" | "research paper" | "news" | "tweet" | "personal site" | "financial report"
-  domains?: string[];         // only return results from these domains
-  excludeDomains?: string[];  // exclude results from these domains
-  startDate?: string;         // only results published after this ISO date
-  endDate?: string;           // only results published before this ISO date
-  fresh?: boolean;            // force livecrawl for latest content (slower)
-  schema?: object;            // JSON schema for structured deep search output
-  systemPrompt?: string;      // instructions for deep search behavior
-  contentQuery?: string;      // custom query for highlight/summary selection
-}
-```
-
-## Content Modes
-
-| Mode | Best for | Token cost |
-|------|----------|------------|
-| `highlights` (default) | Factual lookups, API docs, multi-step research | Low — only relevant excerpts |
-| `summary` | Quick overviews, when you need a condensed answer | Low — LLM-generated summary |
-| `text` | Deep analysis requiring full page context | High — full page text |
-
-**Always prefer `highlights` for agent workflows.** It returns 10x fewer tokens than full text while preserving the most relevant information.
-
-## Search Types
-
-| Type | Speed | When to use |
-|------|-------|-------------|
-| `auto` (default) | ~1s | Almost always the right choice |
-| `fast` | ~450ms | When speed matters more than completeness |
-| `instant` | ~200ms | Real-time / interactive use |
-| `deep` | 5-60s | Complex queries needing multi-step reasoning |
-| `deep-reasoning` | 5-60s | Maximum reasoning for every step |
-
-## Examples
-
-### Research API documentation
 ```bash
-exa-cli '{"query":"Google Gemini embedding API dimensions and authentication","domains":["cloud.google.com","ai.google.dev"],"chars":6000}'
+exa-cli '{"query":"latest Node.js LTS release line and support dates","type":"auto","domains":["nodejs.org"],"schema":{"type":"object","required":["line","codename","support_end"],"properties":{"line":{"type":"string"},"codename":{"type":"string"},"support_end":{"type":"string"}}}}'
 ```
 
-### Find recent news
+Use this pattern when the user wants a clean data object, not a prose report.
+
+### Tier 2 - Synthesized research
+
+Use this when the user wants a comparison, landscape summary, or polished writeup and does not need source-conflict analysis.
+
+**Recommended synthesis pattern**
+
 ```bash
-exa-cli '{"query":"AI model releases March 2026","category":"news","results":5,"startDate":"2026-03-01"}'
+exa-cli '{
+  "query":"latest technical approaches to reducing hallucinations in production LLM applications in 2025-2026, with specific techniques and evidence",
+  "type":"deep-reasoning",
+  "additionalQueries":[
+    "production LLM hallucination mitigation techniques 2026",
+    "grounding verification benchmark hallucination reduction 2025 2026"
+  ],
+  "systemPrompt":"Write for an engineering lead. Focus on named techniques, specific evidence, tradeoffs, and when each approach fits.",
+  "schema":{
+    "type":"text",
+    "description":"Markdown report with sections: intro, techniques, benchmarks, tradeoffs, conclusion."
+  },
+  "synthOnly":true
+}'
 ```
 
-### Deep search with structured output
+Why this works:
+- `deep-reasoning` is the best default middle tier.
+- `additionalQueries` improves coverage for broad research topics.
+- `systemPrompt` shapes the answer.
+- `outputSchema` turns the response into a clean deliverable.
+- `synthOnly: true` avoids dumping 10 raw results after the synthesis.
+
+**When to choose `deep` instead**
+
+Use `deep` when you want a solid synthesis but do not need the extra tightness of `deep-reasoning`.
+
 ```bash
-exa-cli '{"query":"compare embedding API pricing across providers","type":"deep","schema":{"type":"object","required":["providers"],"properties":{"providers":{"type":"array","items":{"type":"object","required":["name","price_per_million_tokens","dimensions"],"properties":{"name":{"type":"string"},"price_per_million_tokens":{"type":"string"},"dimensions":{"type":"string"}}}}}}}'
+exa-cli '{"query":"compare hosted browser automation APIs for AI agents","type":"deep","systemPrompt":"Return a concise markdown comparison with strengths, weaknesses, and best fit.","schema":{"type":"text","description":"Markdown comparison"},"synthOnly":true}'
 ```
 
-### Scoped domain search
-```bash
-exa-cli '{"query":"Ollama embedding models API endpoint","domains":["ollama.com","github.com/ollama"]}'
-```
+**Do not default to `deep-lite` for synthesis**
 
-### Fresh content (force livecrawl)
-```bash
-exa-cli '{"query":"current Node.js LTS version","fresh":true,"results":3}'
-```
+`deep-lite` is valid, but the live spike test showed that it often formats the top source instead of producing a true synthesis. If the user wants a writeup, pick `deep` or `deep-reasoning`.
 
-## Best Practices
+### Tier 3 - Iterative research
 
-- Use descriptive, natural language queries — Exa handles semantic search well.
-- Set `chars` based on how much detail you need (2000 for quick facts, 6000+ for detailed API specs).
-- Use `domains` to scope results when you know the authoritative source.
-- Use `category` for specialized searches (companies, people, research papers).
-- Deep search is powerful but slow (5-60s) — only use for complex multi-step queries.
-- `fresh: true` forces livecrawl on every result, increasing latency. Only use when you need truly current data.
+Use a `web-search` subagent when the job is not just "summarize this topic" but "show me where the evidence agrees, disagrees, and gets shaky."
+
+**Example escalation**
+
+User asks: "Which sources disagree about the benchmark gains from speculative decoding, and which claims look weakest?"
+
+Do not use `exa-cli` alone. Spawn a `web-search` subagent and ask for:
+- primary-source citations for each major claim
+- explicit conflicts between sources
+- quoted evidence where possible
+- uncertainties or weak spots in the public record
+
+That is the line between middle-tier synthesis and full iterative research.
+
+## Tool Choice Boundaries
+
+- Prefer `exa-cli` over `webfetch` for multi-result web research.
+- Use `webfetch` only when the URL is already known and you need that exact page.
+- Use `deep-reasoning` before spawning `web-search` when the user wants a good report but not meta-analysis.
+- Use local code tools, not `exa-cli`, for repo inspection.
+
+## Gotchas
+
+- `outputSchema` and `systemPrompt` work on all search types.
+- `tweet` is not a valid category.
+- `highlightScores` is deprecated and should not appear in output.
+- `synthOnly` is a CLI formatter flag, not an Exa API field.
+- `fresh: true` is just shorthand for `maxAgeHours: 0`.
 
 ## Environment
 
-Requires `EXA_API_KEY`. Get one at https://dashboard.exa.ai/api-keys
-
-If `EXA_API_KEY` is not set, the CLI exits with an error message and a link to get a key.
+Requires `EXA_API_KEY`. Get one at https://dashboard.exa.ai/api-keys. If not set, the CLI exits with a clear error pointing to the dashboard.

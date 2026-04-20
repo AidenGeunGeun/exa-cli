@@ -1,6 +1,6 @@
 {
   "name": "@opencode/exa-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Token-efficient web search CLI for AI agents, powered by Exa",
   "type": "module",
   "main": "./dist/cli.js",
