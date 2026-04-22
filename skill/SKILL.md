@@ -1,6 +1,6 @@
 ---
 name: exa-cli
-description: Provides three-tier web research via the Exa Search API. Triggers for current web information, API docs, vendor comparisons, landscape scans, and structured extraction from search results. Should be preferred over webfetch for multi-result research, and its deep-reasoning synthesis tier often replaces a web-search subagent when the task needs synthesis but not claim-level conflict analysis.
+description: Provides three-tier web research via the Exa Search API. Triggers for current web information, API docs, vendor comparisons, landscape scans, and structured extraction from search results. Should be preferred over webfetch for multi-result research. For frontier-model agents, prefer `auto` — synthesis tiers mostly produce output you'd reason through anyway.
 ---
 
 # exa-cli
@@ -9,18 +9,20 @@ description: Provides three-tier web research via the Exa Search API. Triggers f
 
 ## Start Here
 
-Deep-reasoning is the fast, structured middle tier. Use it for synthesis without meta-analysis. Use a web-search subagent when you need claim-level citations, conflicts analysis, or iterative reasoning.
+**For frontier-model agents (Claude Opus/Sonnet, GPT-5, Gemini 2.5): default to `auto`.** You reason better than what Exa's synthesis tiers produce. The value of Exa is sourcing — 10 ranked raw results with highlights — not summarization. Live comparison on an identical query showed `auto` returned the same top sources as `deep` / `deep-reasoning` at 2.1x less cost and 10-15x less latency, with synthesis you'd mostly ignore anyway. Worse, weak synthesis can actively *mislead* a downstream reasoning step into formatting the top source instead of doing real analysis.
+
+Use synthesis tiers (`deep`, `deep-reasoning`) only when the synthesis itself is the deliverable — a user-facing writeup, a comparison table for a human, or explicit structured extraction via `schema`. Use a `web-search` subagent when you need claim-level citations, conflicts analysis, or iterative reasoning.
 
 | Tier | Use this | Cost | Latency | Reach for it when | Do not use it when |
 |:-----|:---------|:-----|:--------|:------------------|:-------------------|
-| Quick lookup | `exa-cli` with `auto` (or `fast` / `instant`) | $0.007 | 1-2s | You need facts, API docs, recent references, or a small structured extract | You need a polished synthesis or source-conflict analysis |
-| Synthesized research | `exa-cli` with `deep-reasoning` or `deep` | $0.015 / $0.012 | 28s / 25s | You want a comparison, landscape scan, buyer guide, or structured writeup | You need to know which sources disagree or where the evidence is weak |
+| Quick lookup (**default for agents**) | `exa-cli` with `auto` (or `fast` / `instant`) | $0.007 | 1-2s | You want sources and highlights, and you will reason through them yourself. Frontier-model default. | You need a polished human-facing writeup and the synthesis itself is the output |
+| Synthesized research | `exa-cli` with `deep-reasoning` or `deep` | $0.015 / $0.012 | 28s / 25s | You want a comparison or landscape scan *as the output*, or you need `schema`-driven structured extraction | A frontier model will read and reason over the results anyway — `auto` gets you there faster |
 | Iterative research | `web-search` subagent | ~$0.08 | 60-90s | You need claim-level citations, conflicts analysis, or follow-the-thread investigation | You only need a solid synthesis or structured extraction |
 
 Quick rule:
-- Need one answer fast: `auto`.
-- Need a writeup fast: `deep-reasoning`.
-- Need source-by-source analysis: `web-search` subagent.
+- Frontier-model agent doing research: **`auto`**.
+- Need a human-facing writeup fast and the synthesis *is* the deliverable: `deep-reasoning`.
+- Need source-by-source conflict analysis: `web-search` subagent.
 
 ## Cost And Latency Cheat Sheet
 
@@ -36,8 +38,9 @@ Pricing notes:
 - First 10 results worth of contents are bundled, so do not cling to 5-result habits.
 - Additional results beyond 10 add $0.001 per result.
 - `summary` adds $0.001 per result.
-- `deep-reasoning` is only $0.003 more than `deep`; default to it when the user wants synthesis.
-- `deep-lite` tested poorly for synthesis. Treat it as optional completeness, not the recommended middle tier.
+- `deep-reasoning` is only $0.003 more than `deep`; prefer it over `deep` *when synthesis is genuinely wanted*.
+- `deep-lite` tested poorly for synthesis. Treat it as optional completeness, not a recommended tier.
+- **For frontier-model agents specifically: `auto` is a better default than any synthesis tier.** You save $0.005-0.008 per call and ~25 seconds of latency, and the frontier model's own reasoning over raw highlights typically beats Exa's synthesis anyway.
 
 ## Best Defaults
 
@@ -81,7 +84,7 @@ Use this pattern when the user wants a clean data object, not a prose report.
 
 ### Tier 2 - Synthesized research
 
-Use this when the user wants a comparison, landscape summary, or polished writeup and does not need source-conflict analysis.
+Use this only when the synthesis itself is the deliverable — a user-facing markdown writeup, a comparison table to hand to a human, or `schema`-driven structured extraction. A frontier-model agent reasoning over the output will typically do better with `auto` + its own reasoning than with a synthesis tier.
 
 **Recommended synthesis pattern**
 

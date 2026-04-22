@@ -1,5 +1,5 @@
 {
-  "name": "@opencode/exa-cli",
+  "name": "@skybluejacket/exa-cli",
   "version": "0.2.0",
   "description": "Token-efficient web search CLI for AI agents, powered by Exa",
   "type": "module",
@@ -33,8 +33,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AidenGeunGeun/agent-tools.git",
-    "directory": "packages/exa-cli"
+    "url": "git+https://github.com/AidenGeunGeun/exa-cli.git"
   },
   "keywords": [
     "exa",
