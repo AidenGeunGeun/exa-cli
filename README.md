@@ -127,7 +127,8 @@ printf '%s' '{"query":"latest Node.js LTS"}' | exa-cli
 
 ## Agent Integration
 
-An OCO skill is included at `skill/SKILL.md`.
+A skill markdwon file is included at `skill/SKILL.md`.
+Use where applicable; Claude Code, Cursor, Codex, OpenCode. 
 
 ```bash
 mkdir -p ~/.config/oco/skills/exa-cli
