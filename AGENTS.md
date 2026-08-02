@@ -60,17 +60,20 @@ Sections within `cli.ts`:
 - Content params always nest under `contents` on `/search`.
 - `content` can be a single mode or an array such as `["highlights", "text"]`.
 - `fresh: true` maps to `contents.maxAgeHours: 0`; explicit `maxAgeHours` takes precedence.
-- `additionalQueries` is a top-level API field.
+- `additionalQueries` is a top-level API field (deep search types only).
 - `outputSchema` and `systemPrompt` work on all search types, not just deep.
 - `synthOnly` is CLI-only formatter behavior. Never send it to Exa.
+- `category` accepts any non-empty string: known categories (`company`, `publication`, `news`, `personal site`, `financial report`, `people`) have dedicated indexes; other strings act as hints. Do not re-tighten validation to an enum.
+- `domains` / `excludeDomains` accept bare domains, path prefixes (`exa.ai/blog`), and wildcard subdomains (`*.substack.com`); the CLI passes them through as `includeDomains` / `excludeDomains`.
+- `userLocation` is a two-letter ISO country code; the CLI uppercases it before sending.
 
 ## Gotchas
 
 - Exa API uses camelCase in JSON (for example `numResults`, `maxCharacters`, `maxAgeHours`).
-- `category: "company"` and `category: "people"` do not support date filters or `excludeDomains`.
+- `category: "company"` and `category: "people"` do not support date filters or `excludeDomains` (400 error).
+- `category: "publication"` replaced `research paper` and only allows a limited set of `includeDomains` values — even `arxiv.org` is rejected (400, verified live). In practice avoid combining it with domain filters.
 - `useAutoprompt` is deprecated - do not add it.
 - `highlightScores` is deprecated/removed - do not read or render it.
-- `tweet` is not a valid category.
 - `outputSchema` now works with `auto`, `fast`, `instant`, `deep-lite`, `deep`, and `deep-reasoning`.
 - Content params (`highlights`, `text`, `summary`, `maxAgeHours`) must be nested under `contents` on the `/search` endpoint.
 

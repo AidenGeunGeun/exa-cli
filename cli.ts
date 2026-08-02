@@ -29,11 +29,11 @@ loadEnvFile();
 
 const SEARCH_TYPES = ["auto", "fast", "instant", "deep-lite", "deep", "deep-reasoning"] as const;
 const CONTENT_MODES = ["highlights", "text", "summary"] as const;
-const CATEGORIES = ["company", "people", "research paper", "news", "personal site", "financial report"] as const;
+// Categories with dedicated Exa indexes; the API also accepts any other string as a category hint.
+const KNOWN_CATEGORIES = ["company", "publication", "news", "personal site", "financial report", "people"] as const;
 
 type SearchType = typeof SEARCH_TYPES[number];
 type ContentMode = typeof CONTENT_MODES[number];
-type Category = typeof CATEGORIES[number];
 
 interface ExaInput {
   /** Natural language search query (required) */
@@ -51,14 +51,17 @@ interface ExaInput {
   /** Content mode(s): highlights (default), text, summary */
   content?: ContentMode | ContentMode[];
 
-  /** Content category filter */
-  category?: Category;
+  /** Content category filter; known categories have dedicated indexes, other strings act as hints */
+  category?: string;
 
-  /** Only return results from these domains */
+  /** Only return results from these domains, path prefixes, or wildcard subdomains */
   domains?: string[];
 
-  /** Exclude results from these domains */
+  /** Exclude results from these domains, path prefixes, or wildcard subdomains */
   excludeDomains?: string[];
+
+  /** Two-letter ISO country code to geo-bias results (e.g. "US") */
+  userLocation?: string;
 
   /** Only results published after this ISO date */
   startDate?: string;
@@ -247,6 +250,7 @@ function buildRequestBody(input: ExaInput): Record<string, unknown> {
   if (input.category) body.category = input.category;
   if (input.domains) body.includeDomains = input.domains;
   if (input.excludeDomains) body.excludeDomains = input.excludeDomains;
+  if (input.userLocation) body.userLocation = input.userLocation;
   if (input.startDate) body.startPublishedDate = input.startDate;
   if (input.endDate) body.endPublishedDate = input.endDate;
 
@@ -414,9 +418,20 @@ function parseInput(raw: string): ExaInput {
   if (parsed.results !== undefined) input.results = parseInteger(parsed.results, "results", 1, 100);
   if (parsed.chars !== undefined) input.chars = parseInteger(parsed.chars, "chars", 1);
   if (parsed.content !== undefined) input.content = parseContent(parsed.content);
-  if (parsed.category !== undefined) input.category = parseEnumValue(parsed.category, "category", CATEGORIES);
+  if (parsed.category !== undefined) {
+    if (typeof parsed.category !== "string" || !parsed.category.trim()) {
+      throw new Error(`Invalid "category". Expected a non-empty string, e.g. one of: ${formatAllowedValues(KNOWN_CATEGORIES)}`);
+    }
+    input.category = parsed.category.trim();
+  }
   if (parsed.domains !== undefined) input.domains = parseStringArray(parsed.domains, "domains");
   if (parsed.excludeDomains !== undefined) input.excludeDomains = parseStringArray(parsed.excludeDomains, "excludeDomains");
+  if (parsed.userLocation !== undefined) {
+    if (typeof parsed.userLocation !== "string" || !/^[A-Za-z]{2}$/.test(parsed.userLocation)) {
+      throw new Error('Invalid "userLocation". Expected a two-letter country code, e.g. "US".');
+    }
+    input.userLocation = parsed.userLocation.toUpperCase();
+  }
   if (parsed.startDate !== undefined && typeof parsed.startDate !== "string") {
     throw new Error('Invalid "startDate". Expected a string.');
   }
@@ -482,14 +497,16 @@ JSON Input:
   results           number             Number of results 1-100 (default: 10)
   chars             number             Max characters for highlights/text (default: 4000)
   content           string|string[]    highlights | text | summary (default: highlights)
-  category          string             company | people | research paper | news | personal site | financial report
-  domains           string[]           Only these domains
-  excludeDomains    string[]           Exclude these domains
+  category          string             company | publication | news | personal site | financial report | people
+                                       (other strings are accepted as category hints)
+  domains           string[]           Only these domains; accepts path prefixes ("exa.ai/blog") and wildcards ("*.substack.com")
+  excludeDomains    string[]           Exclude these domains; same path/wildcard support
+  userLocation      string             Two-letter country code to geo-bias results (e.g. "US")
   startDate         string             Published after (ISO date)
   endDate           string             Published before (ISO date)
   fresh             boolean            Alias for maxAgeHours: 0
   maxAgeHours       number             Allow cached results newer than this many hours
-  additionalQueries string[]           Extra query variations to improve recall
+  additionalQueries string[]           Extra query variations to improve recall (deep tiers only)
   schema            object             JSON schema for structured output
   systemPrompt      string             Instructions for search behavior
   contentQuery      string             Custom query for highlights/summary selection
@@ -499,6 +516,7 @@ Examples:
   exa-cli '{"query":"OpenAI embeddings API dimensions and models"}'
   exa-cli '{"query":"latest Rust async runtime benchmarks","results":3,"content":["highlights","text"]}'
   exa-cli '{"query":"current Node.js LTS version","domains":["nodejs.org"],"maxAgeHours":24}'
+  exa-cli '{"query":"diffusion transformer scaling laws","category":"publication"}'
   exa-cli '{"query":"AI startups seed funding 2026","type":"auto","schema":{"type":"object","required":["companies"],"properties":{"companies":{"type":"array","items":{"type":"object","required":["name","funding"],"properties":{"name":{"type":"string"},"funding":{"type":"string"}}}}}}}'
   exa-cli '{"query":"compare coding agents for greenfield Next.js apps","type":"deep-reasoning","additionalQueries":["agentic coding tool benchmark 2026","Next.js coding assistant comparison"],"systemPrompt":"Return a concise buyer's guide with strengths, weaknesses, and best fit.","schema":{"type":"text","description":"Buyer guide markdown"},"synthOnly":true}'
 

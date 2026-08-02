@@ -94,13 +94,14 @@ printf '%s' '{"query":"latest Node.js LTS"}' | exa-cli
 | `results` | number | `10` | Number of results (1-100) |
 | `chars` | number | `4000` | Max characters for `highlights` / `text` |
 | `content` | string \| string[] | `"highlights"` | `highlights`, `text`, `summary`, or a combined array |
-| `category` | string | - | `company`, `people`, `research paper`, `news`, `personal site`, `financial report` |
-| `domains` | string[] | - | Only return results from these domains |
-| `excludeDomains` | string[] | - | Exclude these domains |
+| `category` | string | - | `company`, `publication`, `news`, `personal site`, `financial report`, `people` — other strings act as category hints |
+| `domains` | string[] | - | Only these domains; accepts path prefixes (`exa.ai/blog`) and wildcard subdomains (`*.substack.com`) |
+| `excludeDomains` | string[] | - | Exclude these domains; same path/wildcard support |
+| `userLocation` | string | - | Two-letter country code to geo-bias results (e.g. `US`) |
 | `startDate` / `endDate` | string | - | Published date range (ISO) |
 | `fresh` | boolean | `false` | Shorthand for `maxAgeHours: 0` |
 | `maxAgeHours` | number | - | Allow cached results newer than N hours |
-| `additionalQueries` | string[] | - | Extra query variations for coverage |
+| `additionalQueries` | string[] | - | Extra query variations for coverage (deep tiers only) |
 | `schema` | object | - | JSON schema for structured output — works on every tier |
 | `systemPrompt` | string | - | Shapes tone, sections, priorities |
 | `contentQuery` | string | - | Custom query to focus highlights/summaries |
@@ -123,7 +124,8 @@ printf '%s' '{"query":"latest Node.js LTS"}' | exa-cli
 - `schema` and `systemPrompt` work on every search type, not just deep modes.
 - `synthOnly` is a CLI formatter flag — it doesn't map to an Exa API field.
 - `highlightScores` is deprecated in the API and intentionally not rendered.
-- `tweet` is not a valid Exa category and is intentionally rejected.
+- `publication` replaced the old `research paper` category and returns scholarly results with structured metadata (authors, venue, DOI). It only allows a limited set of `domains` values — even `arxiv.org` is rejected (400) — so in practice skip `domains` with it.
+- `company` and `people` categories don't support date filters or `excludeDomains`.
 
 ---
 

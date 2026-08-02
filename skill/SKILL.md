@@ -55,6 +55,9 @@ Pricing notes:
 | Input | Why it matters |
 |:------|:---------------|
 | `content` | Can be a single mode or an array like `["highlights","text"]` when you want both snippets and long excerpts |
+| `domains` / `excludeDomains` | Accept bare domains, path prefixes (`"exa.ai/blog"`), and wildcard subdomains (`"*.substack.com"`) — use these instead of `site:` in the query |
+| `category` | `publication` (scholarly papers with authors/venue/DOI metadata), `company`, `people`, `news`, `personal site`, `financial report`; any other string acts as a hint |
+| `userLocation` | Two-letter country code (`"US"`, `"KR"`) to geo-bias results for location-sensitive queries |
 | `maxAgeHours` | Lets you say "use cache if newer than 24h, otherwise crawl" |
 | `additionalQueries` | Gives Exa 2-3 alternate phrasings for better deep coverage |
 | `schema` | Requests structured output on any tier |
@@ -143,14 +146,15 @@ That is the line between middle-tier synthesis and full iterative research.
 ## Tool Choice Boundaries
 
 - Prefer `exa-cli` over `webfetch` for multi-result web research.
-- Use `webfetch` only when the URL is already known and you need that exact page.
+- For a single known URL, reach for `firecrawl-cli` to get clean markdown — it renders JS-heavy pages (where `webfetch` returns an empty shell) and parses remote PDF URLs. Keep `exa-cli` for multi-result research, not single-page extraction.
 - Use `deep-reasoning` before spawning `web-search` when the user wants a good report but not meta-analysis.
 - Use local code tools, not `exa-cli`, for repo inspection.
 
 ## Gotchas
 
 - `outputSchema` and `systemPrompt` work on all search types.
-- `tweet` is not a valid category.
+- `publication` replaced the old `research paper` category. It only allows a limited set of `domains` values — even `arxiv.org` is rejected (400) — so in practice skip `domains` and let the category do the filtering.
+- `company` and `people` categories do not support date filters or `excludeDomains` (400).
 - `highlightScores` is deprecated and should not appear in output.
 - `synthOnly` is a CLI formatter flag, not an Exa API field.
 - `fresh: true` is just shorthand for `maxAgeHours: 0`.
