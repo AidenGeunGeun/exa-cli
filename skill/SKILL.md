@@ -47,7 +47,7 @@ Pricing notes:
 - Prefer `highlights` unless you truly need long excerpts.
 - Prefer `maxAgeHours` over `fresh` when you want "recent enough" instead of forced recrawls.
 - Use `additionalQueries` on `deep` and `deep-reasoning` when the topic has multiple phrasings.
-- Use `outputSchema` and `systemPrompt` freely on every search type. They are not deep-only anymore.
+- Use `schema` and `systemPrompt` freely on every search type. The CLI sends `schema` to Exa as `outputSchema`; neither feature is deep-only.
 - Set `synthOnly: true` when a synthesis response is the real deliverable. It suppresses the raw result dump.
 
 ## Useful Knobs
@@ -75,6 +75,19 @@ Use this for facts, docs, or cheap structured extraction.
 
 ```bash
 exa-cli '{"query":"current Node.js LTS version","domains":["nodejs.org"]}'
+```
+
+**Targeted retrieval**
+
+```bash
+# Restrict results to a site section or wildcard subdomains
+exa-cli '{"query":"latest product announcements","domains":["exa.ai/blog"]}'
+
+# Use Exa's scholarly publication index
+exa-cli '{"query":"diffusion transformer scaling laws","category":"publication"}'
+
+# Geo-bias a location-sensitive query
+exa-cli '{"query":"public holidays this month","userLocation":"KR"}'
 ```
 
 **Structured extraction on a cheap `auto` call**
@@ -152,7 +165,7 @@ That is the line between middle-tier synthesis and full iterative research.
 
 ## Gotchas
 
-- `outputSchema` and `systemPrompt` work on all search types.
+- CLI inputs `schema` and `systemPrompt` work on all search types; `schema` maps to Exa's `outputSchema` field.
 - `publication` replaced the old `research paper` category. It only allows a limited set of `domains` values — even `arxiv.org` is rejected (400) — so in practice skip `domains` and let the category do the filtering.
 - `company` and `people` categories do not support date filters or `excludeDomains` (400).
 - `highlightScores` is deprecated and should not appear in output.
